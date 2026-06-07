@@ -1,0 +1,92 @@
+{
+ "add_total_row": 0,
+ "add_translate_data": 0,
+ "columns": [
+  {
+   "fieldname": "expense_category",
+   "fieldtype": "Link",
+   "label": "Expense Category",
+   "options": "Driver Expense Category",
+   "width": 0
+  },
+  {
+   "fieldname": "expense_type",
+   "fieldtype": "Link",
+   "label": "Expense Type",
+   "options": "Driver Expense Category",
+   "width": 0
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total Amount",
+   "width": 0
+  },
+  {
+   "fieldname": "percentage",
+   "fieldtype": "Data",
+   "label": "Percentage of Cost",
+   "width": 0
+  },
+  {
+   "fieldname": "cost_level",
+   "fieldtype": "Data",
+   "label": "Cost Level",
+   "width": 0
+  }
+ ],
+ "creation": "2026-06-07 20:22:46.909879",
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "mandatory": 0,
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "driver",
+   "fieldtype": "Link",
+   "label": "Driver",
+   "mandatory": 0,
+   "options": "Employee",
+   "wildcard_filter": 0
+  },
+  {
+   "fieldname": "expense_category",
+   "fieldtype": "Link",
+   "label": "Driver Expense Category",
+   "mandatory": 0,
+   "options": "Driver Expense Category",
+   "wildcard_filter": 0
+  }
+ ],
+ "idx": 0,
+ "is_standard": "Yes",
+ "letter_head": null,
+ "modified": "2026-06-07 20:22:46.909879",
+ "modified_by": "Administrator",
+ "module": "Logistics Management",
+ "name": "Trip Cost Pattern Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Driver Expense Entry",
+ "report_name": "Trip Cost Pattern Report",
+ "report_type": "Script Report",
+ "roles": [
+  {
+   "role": "System Manager"
+  }
+ ],
+ "timeout": 0
+}
