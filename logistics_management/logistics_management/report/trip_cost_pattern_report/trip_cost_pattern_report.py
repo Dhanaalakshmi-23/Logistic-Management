@@ -77,40 +77,41 @@ def get_conditions(filters):
 
     return conditions
 
-
 def get_data(filters):
 
-    conditions = get_conditions(filters)
-
-    data = frappe.db.sql(
-        f"""
-        SELECT
-
+    query = """
+        select
             ded.expense_category,
             ded.expense_type,
-            SUM(ded.amount) as total_amount
+            sum(ded.amount) as total_amount
+        from `tabDriver Expense Detail` ded
+        join `tabDriver Expense Entry` de
+            on ded.parent = de.name
+        where de.docstatus = 1
+    """
 
-        FROM `tabDriver Expense Entry` de
+    if filters:
 
-        INNER JOIN `tabDriver Expense Detail` ded
-            ON ded.parent = de.name
+        if filters.get("driver"):
+            query += " and de.driver = %(driver)s"
 
-        WHERE
-            de.docstatus = 1
-            {conditions}
+        if filters.get("from_date"):
+            query += " and de.posting_date >= %(from_date)s"
 
-        GROUP BY ded.expense_category
+        if filters.get("to_date"):
+            query += " and de.posting_date <= %(to_date)s"
 
-        ORDER BY total_amount DESC
-        """,
-        filters,
-        as_dict=True
-    )
+    query += """
+        group by ded.expense_category
+        order by total_amount desc
+    """
+
+    data = frappe.db.sql(query, filters, as_dict=True)
 
     grand_total = 0
 
     for row in data:
-        grand_total += row.total_amount or 0
+        grand_total = grand_total + (row.total_amount or 0)
 
     for row in data:
 
@@ -126,45 +127,15 @@ def get_data(filters):
 
         if row.percentage >= 50:
 
-            row.cost_level = """
-            <span style="
-                background:#f8d7da;
-                color:#721c24;
-                padding:4px 8px;
-                border-radius:10px;
-                font-weight:bold;
-            ">
-            High Cost
-            </span>
-            """
+            row.cost_level = "High"
 
         elif row.percentage >= 20:
 
-            row.cost_level = """
-            <span style="
-                background:#fff3cd;
-                color:#856404;
-                padding:4px 8px;
-                border-radius:10px;
-                font-weight:bold;
-            ">
-            Medium Cost
-            </span>
-            """
+            row.cost_level = "Medium"
 
         else:
 
-            row.cost_level = """
-            <span style="
-                background:#d4edda;
-                color:#155724;
-                padding:4px 8px;
-                border-radius:10px;
-                font-weight:bold;
-            ">
-            Low Cost
-            </span>
-            """
+            row.cost_level = "Low"
 
     return data
 
