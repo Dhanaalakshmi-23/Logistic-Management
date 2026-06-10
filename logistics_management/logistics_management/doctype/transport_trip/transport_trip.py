@@ -51,9 +51,12 @@ class TransportTrip(Document):
 
 
 	def validate(self):
+		self.fetch_default_advance()
 		self.validate_vehicle()
 		self.validate_dates()
 		self.validate_advance()
+		self.calculate_distance()
+		self.validate_km_readings()	
 
 	def on_cancel(self):
 
@@ -66,6 +69,12 @@ class TransportTrip(Document):
 			jv = frappe.get_doc("Journal Entry",self.rental_expense_jv)
 			if jv.docstatus == 1:
 				jv.cancel()
+	
+	def fetch_default_advance(self):
+		if not self.advance_given_to_driver:
+			settings = frappe.get_single("Default Trip Settings")
+			self.advance_given_to_driver = settings.default_advance_amount
+
 
 	def create_advance_jv(self):
 		cash_acc = self.get_cash_account()
@@ -141,6 +150,24 @@ class TransportTrip(Document):
 	def validate_advance(self):
 		if self.advance_given_to_driver == 0:
 			frappe.throw("Advance Amount should be greater than zero")
+
+	def calculate_distance(self):
+
+		if self.start_km_reading and self.end_km_reading:
+			self.distance_travelled = (
+				self.end_km_reading - self.start_km_reading
+			)
+
+	def validate_km_readings(self):
+
+		if (
+			self.start_km_reading
+			and self.end_km_reading
+			and self.end_km_reading <= self.start_km_reading
+		):
+			frappe.throw(
+				"End KM Reading must be greater than Start KM Reading"
+			)
 
 @frappe.whitelist()
 def create_rental_expense_je(trip):

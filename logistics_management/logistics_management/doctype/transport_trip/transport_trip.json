@@ -29,6 +29,11 @@
   "destination",
   "start_date_time",
   "end_date_time",
+  "column_break_piji",
+  "start_km_reading",
+  "end_km_reading",
+  "distance_travelled",
+  "vehicle_mileage",
   "amount_details_tab",
   "financial_summary_section",
   "total_advance",
@@ -36,7 +41,9 @@
   "balance_amount",
   "tab_break_ynuq",
   "reference_section",
-  "advance_jv"
+  "advance_jv",
+  "settlement_status",
+  "settlement_journal_entry"
  ],
  "fields": [
   {
@@ -227,13 +234,54 @@
   {
    "fieldname": "reference_section",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_piji",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_km_reading",
+   "fieldtype": "Float",
+   "label": "Start KM Reading"
+  },
+  {
+   "fieldname": "end_km_reading",
+   "fieldtype": "Float",
+   "label": "End KM Reading"
+  },
+  {
+   "fieldname": "distance_travelled",
+   "fieldtype": "Float",
+   "label": "Distance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "vehicle_mileage",
+   "fieldtype": "Float",
+   "label": "Vehicle Mileage",
+   "non_negative": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "settlement_status",
+   "fieldtype": "Select",
+   "label": "Settlement Status",
+   "options": "In Progress\nPayable by Driver\nPayable by Company\nCleared",
+   "read_only": 1
+  },
+  {
+   "fieldname": "settlement_journal_entry",
+   "fieldtype": "Link",
+   "label": "Settlement Journal Entry",
+   "options": "Journal Entry",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-05 16:01:54.935916",
+ "modified": "2026-06-10 10:26:28.493511",
  "modified_by": "Administrator",
  "module": "Logistics Management",
  "name": "Transport Trip",

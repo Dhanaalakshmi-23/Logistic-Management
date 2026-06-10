@@ -150,22 +150,16 @@ class DriverExpenseEntry(Document):
 	# 			)
 	def update_trip_summary(self):
 		trip = frappe.get_doc("Transport Trip", self.trip)
-
 		trip.db_set("total_expense", self.total_expense)
 		trip.db_set("balance_amount", self.balance_amount)
+		if self.balance_amount > 0:
+			trip.db_set("settlement_status", "Payable by Driver")
 
-		if self.settlement_journal_entry:
-			trip.db_set("settlement_status", "Cleared")
+		elif self.balance_amount < 0:
+			trip.db_set("settlement_status", "Payable by Company")
+
 		else:
-			if self.balance_amount > 0:
-				trip.db_set("settlement_status", "Payable by Driver")
-
-			elif self.balance_amount < 0:
-				trip.db_set("settlement_status", "Payable by Company")
-
-			else:
-				trip.db_set("settlement_status", "Cleared")
-
+			trip.db_set("settlement_status", "Cleared")
 		trip.db_set("status", "Completed")
 
 
@@ -234,13 +228,13 @@ def create_settlement_je(expense_entry):
 
 	if balance > 0:
 		jv.append("accounts", {
-			"account": "Cash - DLPL",
-			#"company": trip.company,
+			"account": "Cash",
+			"company": trip.company,
 			"debit_in_account_currency": balance
 		})
 		jv.append("accounts", {
-			"account": "Driver Advance - DLPL",
-			#"company" :trip.company,
+			"account": "Driver Advance",
+			"company" :trip.company,
 			"credit_in_account_currency": balance
 		})
 
@@ -248,12 +242,12 @@ def create_settlement_je(expense_entry):
 		amount = abs(balance)
 
 		jv.append("accounts", {
-			"account": "Driver Advance - DLPL",
+			"account": "Driver Advance",
 			"company" :trip.company,
 			"debit_in_account_currency": amount
 		})
 		jv.append("accounts", {
-			"account": "Cash - DLPL",
+			"account": "Cash",
 			"company" :trip.company,
 			"credit_in_account_currency": amount
 		})
@@ -261,11 +255,15 @@ def create_settlement_je(expense_entry):
 	jv.insert(ignore_permissions=True)
 	jv.submit()
 
-	doc.db_set("settlement_journal_entry", jv.name)
-	doc.db_set("balance_amount", 0)
-	trip.db_set("settlement_journal_entry",jv.name)
-	trip.db_set("balance_amount", 0)
-	trip.db_set("settlement_status", "Cleared")
-	frappe.db.commit()
+	frappe.db.set_value("Driver Expense Entry", doc.name, {
+		"settlement_journal_entry": jv.name,
+		"balance_amount": 0
+	})
 
+	frappe.db.set_value("Transport Trip", doc.trip, {
+		"balance_amount": 0,
+		"settlement_status": "Cleared",
+		"settlement_journal_entry": jv.name,
+		"status": "Settled"
+	})
 	return jv.name

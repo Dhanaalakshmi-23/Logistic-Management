@@ -1,191 +1,188 @@
-# Copyright (c) 2026, Dhanaa Lakshmi and contributors
+# Copyright (c) 2026, Frappe Technologies and contributors
 # For license information, please see license.txt
 
 import frappe
-from frappe import _
 
 
-def execute(filters: dict | None = None):
+def execute(filters=None):
+    filters = filters or {}
 
-	columns = get_columns()
-	data = get_data(filters)
-	chart = get_chart(data)
-	summary = get_summary(data)
+    columns = get_columns()
+    data = get_data(filters)
+    chart = get_chart(data)
 
-	return columns, data, None, chart, summary
-
-
-def get_columns() -> list[dict]:
-
-	return [
-		{
-			"label": _("Driver"),
-			"fieldname": "driver",
-			"fieldtype": "Link",
-			"options": "Employee",
-			"width": 220
-		},
-		{
-			"label": _("Total Trips"),
-			"fieldname": "total_trips",
-			"fieldtype": "Int",
-			"width": 120
-		},
-		{
-			"label": _("Total Expense"),
-			"fieldname": "total_expense",
-			"fieldtype": "Currency",
-			"width": 150
-		},
-		{
-			"label": _("Total Payment"),
-			"fieldname": "total_payment",
-			"fieldtype": "Currency",
-			"width": 150
-		},
-		{
-			"label": _("Balance"),
-			"fieldname": "balance",
-			"fieldtype": "Currency",
-			"width": 120
-		},
-		{
-			"label": _("Risk Level"),
-			"fieldname": "risk_level",
-			"fieldtype": "Data",
-			"width": 160
-		}
-	]
+    return columns, data, None, chart
 
 
-def get_data(filters=None):
+def get_columns():
+    return [
+        {
+            "label": "Driver",
+            "fieldname": "driver",
+            "fieldtype": "Link",
+            "options": "Employee",
+            "width": 140
+        },
+        {
+            "label": "Driver Name",
+            "fieldname": "driver_name",
+            "fieldtype": "Data",
+            "width": 180
+        },
+        {
+            "label": "Trips",
+            "fieldname": "trip_count",
+            "fieldtype": "Int",
+            "width": 90
+        },
+        {
+            "label": "Total Advance",
+            "fieldname": "total_advance",
+            "fieldtype": "Currency",
+            "width": 130
+        },
+        {
+            "label": "Total Expense",
+            "fieldname": "total_expense",
+            "fieldtype": "Currency",
+            "width": 130
+        },
+        {
+            "label": "Fuel",
+            "fieldname": "fuel",
+            "fieldtype": "Currency",
+            "width": 110
+        },
+        {
+            "label": "Toll",
+            "fieldname": "toll",
+            "fieldtype": "Currency",
+            "width": 110
+        },
+        {
+            "label": "Food + Tea",
+            "fieldname": "food_tea",
+            "fieldtype": "Currency",
+            "width": 120
+        },
+        {
+            "label": "Variance",
+            "fieldname": "variance",
+            "fieldtype": "Currency",
+            "width": 120
+        },
+        {
+            "label": "Suspicious Area",
+            "fieldname": "suspicious_area",
+            "fieldtype": "Data",
+            "width": 150
+        },
+        {
+            "label": "Risk Level",
+            "fieldname": "risk_level",
+            "fieldtype": "Data",
+            "width": 120
+        }
+    ]
 
-	conditions = ""
 
-	if filters:
-		if filters.get("driver"):
-			conditions += f" AND driver = '{filters.get('driver')}'"
+def get_data(filters):
+    conditions = ""
 
-		if filters.get("from_date") and filters.get("to_date"):
-			conditions += f"""
-				AND posting_date BETWEEN '{filters.get('from_date')}'
-				AND '{filters.get('to_date')}'
-			"""
+    if filters.get("driver"):
+        conditions += " and dee.driver = %(driver)s"
 
-	data = frappe.db.sql(f"""
-		SELECT
-			driver,
-			COUNT(name) as total_trips,
-			SUM(total_expense) as total_expense,
-			SUM(total_advance) as total_advance
-		FROM `tabTransport Trip`
-		WHERE docstatus < 2
-		{conditions}
-		GROUP BY driver
-	""", as_dict=1)
+    data = frappe.db.sql(
+        f"""
+			select
+				dee.driver,
+				dee.driver_name,
+				count(distinct dee.name) as trip_count,
+				sum(dee.advance_amount) as total_advance,
+				sum(dee.total_expense) as total_expense,
 
-	result = []
+				sum(case when ded.expense_category = 'Fuel' then ded.amount else 0 end) as fuel,
+				sum(case when ded.expense_category = 'Toll' then ded.amount else 0 end) as toll,
+				sum(case when ded.expense_category in ('Food', 'Tea') then ded.amount else 0 end) as food_tea
 
-	for d in data:
+			from `tabDriver Expense Entry` dee
+			left join `tabDriver Expense Detail` ded
+				on dee.name = ded.parent
 
-		expense = d.total_expense or 0
-		advance = d.total_advance or 0
-		balance = advance - expense
+			where dee.docstatus = 1
+			{conditions}
 
-		if balance < -5000 or expense > 20000:
-			risk = "High Risk"
-		elif balance < 0:
-			risk = "Medium Risk"
-		else:
-			risk = "Low Risk"
+			group by dee.driver, dee.driver_name
+			order by total_expense desc
+		""",
+        filters,
+        as_dict=True,
+    )
 
-		result.append({
-			"driver": d.driver,
-			"total_trips": d.total_trips,
-			"total_expense": expense,
-			"total_payment": advance,
-			"balance": balance,
-			"risk_level": risk
-		})
+    for row in data:
 
-	return result
+        fuel = row.fuel or 0
+        toll = row.toll or 0
+        food_tea = row.food_tea or 0
+        total_expense = row.total_expense or 0
+        total_advance = row.total_advance or 0
+
+        row.variance = total_advance - total_expense
+
+        highest = max(fuel, toll, food_tea)
+
+        if highest == fuel:
+            row.suspicious_area = "Fuel"
+        elif highest == toll:
+            row.suspicious_area = "Toll"
+        else:
+            row.suspicious_area = "Food/Tea"
+
+        risk_score = 0
+
+        if total_expense > total_advance:
+            risk_score += 50
+
+        if total_expense and fuel > (total_expense * 0.60):
+            risk_score += 20
+        if total_expense and toll > (total_expense * 0.30):
+            risk_score += 15
+        if total_expense and food_tea > (total_expense * 0.20):
+            risk_score += 15
+
+        if risk_score >= 50:
+            row.risk_level = "High"
+        elif risk_score >= 20:
+            row.risk_level = "Medium"
+        else:
+            row.risk_level = "Low"
+
+    return data
 
 
 def get_chart(data):
 
-	if not data:
-		return None
+    if not data:
+        return None
 
-	high = 0
-	medium = 0
-	low = 0
+    fuel = 0
+    toll = 0
+    food_tea = 0
 
-	total_loss = 0
-	total_profit = 0
+    for row in data:
+        fuel += row.fuel or 0
+        toll += row.toll or 0
+        food_tea += row.food_tea or 0
 
-	for d in data:
-
-		risk = d.get("risk_level")
-		balance = d.get("balance") or 0
-
-		if "High" in risk:
-			high += 1
-			total_loss += abs(balance)
-
-		elif "Medium" in risk:
-			medium += 1
-			total_loss += abs(balance)
-
-		elif "Low" in risk:
-			low += 1
-			total_profit += balance
-
-	return {
-		"data": {
-			"labels": ["High Risk", "Medium Risk", "Low Risk"],
-			"datasets": [
-				{
-					"name": "Drivers",
-					"values": [high, medium, low]
-				}
-			]
-		},
-		"type": "donut"
-	}
-
-
-def get_summary(data):
-
-	total_drivers = 0
-	high_risk = 0
-	medium_risk = 0
-
-	for d in data:
-
-		total_drivers += 1
-
-		risk = d.get("risk_level")
-
-		if "High" in risk:
-			high_risk += 1
-
-		elif "Medium" in risk:
-			medium_risk += 1
-
-	return [
-		{
-			"label": "Total Drivers",
-			"value": total_drivers,
-			"indicator": "blue"
-		},
-		{
-			"label": "High Risk Drivers",
-			"value": high_risk,
-			"indicator": "red"
-		},
-		{
-			"label": "Medium Risk Drivers",
-			"value": medium_risk,
-			"indicator": "orange"
-		}
-	]
+    return {
+        "data": {
+            "labels": ["Fuel", "Toll", "Food + Tea"],
+            "datasets": [
+                {
+                    "values": [fuel, toll, food_tea]
+                }
+            ]
+        },
+        "type": "pie",
+        "title": "Expense Category Distribution"
+    }

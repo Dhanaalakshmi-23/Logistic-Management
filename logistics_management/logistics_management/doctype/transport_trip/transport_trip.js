@@ -4,6 +4,22 @@
 frappe.ui.form.on("Transport Trip", {
     refresh(frm) {
 
+        if (frm.is_new() && !frm.doc.advance_given_to_driver) {
+
+            frappe.db.get_single_value(
+                'Default Trip Settings',
+                'default_advance_amount'
+            ).then(value => {
+
+                frm.set_value(
+                    'advance_given_to_driver',
+                    value
+                );
+
+            });
+
+        }
+
         if (frm.doc.docstatus === 1 && frm.doc.advance_jv) {
 
             frm.add_custom_button(
@@ -37,7 +53,7 @@ frappe.ui.form.on("Transport Trip", {
                 }
             );
         }
-        if(frm.doc.doctstatus===1 && frm.doc.rental_expense_jv){
+        if(frm.doc.docstatus===1 && frm.doc.rental_expense_jv){
             frm.add_custom_button("View Rental Expense JE", 
                 function(){
                     frappe.set_route(

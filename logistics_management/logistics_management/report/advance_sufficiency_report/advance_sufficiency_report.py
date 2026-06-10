@@ -2,159 +2,208 @@
 # For license information, please see license.txt
 
 import frappe
-from frappe import _
-
 
 
 def execute(filters=None):
 
-    columns = get_columns()
-    data = get_data(filters)
+	columns = get_columns()
+	data = get_data(filters)
+	chart = get_chart_data(data)
 
-    return columns, data
+	return columns, data, None, chart
 
 
-def get_columns() -> list[dict]:
-	"""Return columns for the report.
+def get_columns():
 
-	One field definition per column, just like a DocType field definition.
-	"""
 	return [
 
-        {
-            "label": "Trip",
-            "fieldname": "trip",
-            "fieldtype": "Link",
-            "options": "Transport Trip",
-            "width": 150
-        },
+		{
+			"label": "Current Default Advance",
+			"fieldname": "current_advance",
+			"fieldtype": "Currency",
+			"width": 180
+		},
 
-        {
-            "label": "Trip Date",
-            "fieldname": "trip_date",
-            "fieldtype": "Date",
-            "width": 120
-        },
+		{
+			"label": "Trips Analysed",
+			"fieldname": "trip_count",
+			"fieldtype": "Int",
+			"width": 140
+		},
 
-        {
-            "label": "Driver",
-            "fieldname": "driver",
-            "fieldtype": "Link",
-            "options": "Employee",
-            "width": 150
-        },
+		{
+			"label": "Total Expense",
+			"fieldname": "total_expense",
+			"fieldtype": "Currency",
+			"width": 150
+		},
 
-        {
-            "label": "Driver Name",
-            "fieldname": "driver_name",
-            "fieldtype": "Data",
-            "width": 180
-        },
+		{
+			"label": "Average Expense",
+			"fieldname": "average_expense",
+			"fieldtype": "Currency",
+			"width": 150
+		},
 
-        {
-            "label": "Advance Given",
-            "fieldname": "advance_given",
-            "fieldtype": "Currency",
-            "width": 130
-        },
+		{
+			"label": "Highest Expense",
+			"fieldname": "highest_expense",
+			"fieldtype": "Currency",
+			"width": 150
+		},
 
-        {
-            "label": "Actual Expense",
-            "fieldname": "actual_expense",
-            "fieldtype": "Currency",
-            "width": 130
-        },
+		{
+			"label": "Lowest Expense",
+			"fieldname": "lowest_expense",
+			"fieldtype": "Currency",
+			"width": 150
+		},
 
-        {
-            "label": "Difference",
-            "fieldname": "difference",
-            "fieldtype": "Currency",
-            "width": 130
-        },
+		{
+			"label": "Recommended Advance",
+			"fieldname": "recommended_advance",
+			"fieldtype": "Currency",
+			"width": 180
+		},
 
-        {
-            "label": "Status",
-            "fieldname": "status",
-            "fieldtype": "Data",
-            "width": 180
-        }
+		{
+			"label": "Difference",
+			"fieldname": "difference",
+			"fieldtype": "Currency",
+			"width": 130
+		},
 
-    ]
+		{
+			"label": "Action Required",
+			"fieldname": "recommendation",
+			"fieldtype": "Data",
+			"width": 220
+		}
+
+	]
+
 
 def get_conditions(filters):
 
-    conditions = ""
+	conditions = ""
 
-    if not filters:
-        return conditions
+	if not filters:
+		return conditions
 
-    if filters.get("driver"):
-        conditions += " AND driver = %(driver)s"
+	if filters.get("driver"):
+		conditions += " AND driver = %(driver)s"
 
-    if filters.get("from_date"):
-        conditions += " AND trip_date >= %(from_date)s"
+	if filters.get("from_date"):
+		conditions += " AND trip_date >= %(from_date)s"
 
-    if filters.get("to_date"):
-        conditions += " AND trip_date <= %(to_date)s"
+	if filters.get("to_date"):
+		conditions += " AND trip_date <= %(to_date)s"
 
-    return conditions
+	return conditions
 
 
 def get_data(filters):
 
-    conditions = get_conditions(filters)
+	conditions = get_conditions(filters)
 
-    data = frappe.db.sql(
-        f"""
-        select
-            name as trip,
-            trip_date,
-            driver,
-            driver_name,
-            advance_given_to_driver as advance_given,
-            total_expense as actual_expense
+	trips = frappe.db.sql(
+		f"""
+		SELECT
+			total_expense
+		FROM `tabTransport Trip`
+		WHERE
+			docstatus = 1
+			AND total_expense > 0
+			{conditions}
+		""",
+		filters,
+		as_dict=True
+	)
 
-        from `tabTransport Trip`
+	if not trips:
+		return []
 
-        where
-            docstatus = 1
-            {conditions}
+	settings = frappe.get_single("Default Trip Settings")
 
-        order by trip_date desc
-        """,
-        filters,
-        as_dict=True
-    )
+	current_advance = settings.default_advance_amount or 0
 
-    for row in data:
+	total_expense = 0
+	highest_expense = 0
+	lowest_expense = trips[0].total_expense
 
-        advance = row.advance_given or 0
-        expense = row.actual_expense or 0
+	for row in trips:
+		expense = row.total_expense or 0
+		total_expense += expense
+		if expense > highest_expense:
+			highest_expense = expense
+		if expense < lowest_expense:
+			lowest_expense = expense
 
-        row.difference = advance - expense
+	average_expense = total_expense / len(trips)
+	recommended_advance = round(average_expense + 200)
+	difference = recommended_advance - current_advance
 
-        if row.difference > 500:
+	if difference > 0:
 
-            row.status = """
-			<span style="color:green;font-weight:bold;">
-				Well Planned
-			</span>
-			"""
+		recommendation = f"""
+		<span style="color:red;font-weight:bold;">
+			Increase Advance by ₹{difference}
+		</span>
+		"""
 
-        elif row.difference >= 0:
+	elif difference < 0:
 
-            row.status = """
-			<span style="color:orange;font-weight:bold;">
-				Exact Match
-			</span>
-			"""
+		recommendation = f"""
+		<span style="color:green;font-weight:bold;">
+			Reduce Advance by ₹{abs(difference)}
+		</span>
+		"""
 
-        else:
+	else:
 
-            row.status = """
-			<span style="color:red;font-weight:bold;">
-				Extra Payment Needed
-			</span>
-			"""
+		recommendation = """
+		<span style="color:blue;font-weight:bold;">
+			Current Advance is Optimal
+		</span>
+		"""
 
-    return data
+	data = [{
+		"current_advance": current_advance,
+		"trip_count": len(trips),
+		"total_expense": total_expense,
+		"average_expense": average_expense,
+		"highest_expense": highest_expense,
+		"lowest_expense": lowest_expense,
+		"recommended_advance": recommended_advance,
+		"difference": difference,
+		"recommendation": recommendation
+	}]
+
+	return data
+
+
+def get_chart_data(data):
+
+	if not data:
+		return None
+
+	row = data[0]
+
+	return {
+		"data": {
+			"labels": [
+				"Current Advance",
+				"Recommended Advance"
+			],
+			"datasets": [
+				{
+					"values": [
+						row["current_advance"],
+						row["recommended_advance"]
+					]
+				}
+			]
+		},
+		"type": "bar",
+		"height": 300
+	}
